@@ -92,7 +92,7 @@
         .pill-btn:active { background: #222; transform: scale(0.95); }
         
         .danger-zone { margin-top: 40px; margin-bottom: 20px; padding-top: 20px; border-top: 1px dashed #333; width: 80%; margin-left: auto; margin-right: auto; }
-        .btn-reset { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 8px 16px; border-radius: 30px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; opacity: 0.7; }
+        .btn-reset { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 8px 16px; border-radius: 30px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: 0.2s; opacity: 0.7; }
         .btn-reset:hover { opacity: 1; background: rgba(239, 68, 68, 0.1); }
         
         .copyright { font-size: 0.7rem; color: #444; letter-spacing: 1px; }
@@ -234,7 +234,7 @@
                 <div id="save-msg" style="text-align:right; color:#666; font-size:0.7rem; margin-top:4px;">已保存</div>
 
                 <button class="btn-report" onclick="generateVisualReport()">
-                    📸 生成实战战报
+                    📸 生成对比战报
                 </button>
                 <div style="height:40px"></div>
             </div>
@@ -249,7 +249,7 @@
     <canvas id="canvas-buffer" width="1080" height="1440"></canvas>
 
     <script>
-        // === 核心数据 (完整版) ===
+        // === 核心数据 ===
         const syllabus = {
             1: {
                 title: "观点训练：说人话",
@@ -474,13 +474,11 @@ ${inputVal}
             textArea.style.position = "fixed"; textArea.style.left = "0"; textArea.style.top = "0"; 
             textArea.style.opacity = "0"; textArea.setAttribute("readonly", "");
             document.body.appendChild(textArea);
-            
             if (navigator.userAgent.match(/ipad|iphone/i)) {
                 const range = document.createRange(); range.selectNodeContents(textArea);
                 const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
                 textArea.setSelectionRange(0, 999999);
             } else { textArea.select(); }
-            
             try {
                 const successful = document.execCommand('copy');
                 if(successful) showSuccess(btnElement);
@@ -498,50 +496,63 @@ ${inputVal}
             setTimeout(() => { btn.innerHTML = originalText; btn.classList.remove("success"); }, 2000);
         }
 
-        // === 修复版：动态计算高度的战报生成器 ===
+        // === 修复版：双百叶窗对比战报 ===
         function generateVisualReport() {
             const revVal = document.getElementById('m-revision').value.trim();
             const inputVal = document.getElementById('m-input').value.trim();
             
-            if (revVal.length < 2) {
-                if(!confirm("⚠️ 建议把 AI 改好的版本填在【逻辑清晰版】里再生成战报，效果更好哦。\n\n是否坚持只生成初稿？")) return;
-            }
-
-            // 1. 准备内容
-            let contentToDraw = revVal.length > 5 ? revVal : inputVal;
-            let label = revVal.length > 5 ? "🏆 逻辑清晰版" : "📝 原始记录";
-            let color = revVal.length > 5 ? "#fcd34d" : "#e2e8f0";
-            
-            let taskTitle = "";
-            for(let p=1; p<=3; p++) { 
-                const d = syllabus[p].days.find(i => i.day === activeDayId); 
-                if(d) { taskTitle = d.title; }
+            if (revVal.length < 2 && inputVal.length < 2) {
+                alert("请先写点东西再生成战报哦！");
+                return;
             }
 
             const canvas = document.getElementById('canvas-buffer');
             const ctx = canvas.getContext('2d');
             const W = 1080;
-            
-            // 2. 预计算文字高度
-            ctx.font = "36px 'Noto Sans SC'";
-            const textLines = getLines(ctx, contentToDraw, W-200); // 100px padding left/right
+            const paddingX = 60; // 左右边距
+            const textX = 100;   // 文字起始X
+            const textWidth = W - 200;
             const lineHeight = 60;
-            const textBlockHeight = textLines.length * lineHeight;
-            
-            // 3. 动态计算总高度
-            const headerHeight = 480; // 标题区高度
-            const footerHeight = 150; // 底部版权区高度
-            const boxPadding = 160;   // 文本框上下的 padding
-            const minHeight = 1440;
-            
-            // 核心公式：Header + 文本高度 + 框内Padding + Footer
-            const calculatedHeight = headerHeight + textBlockHeight + boxPadding + footerHeight;
-            const H = Math.max(minHeight, calculatedHeight); // 至少 1440，多了自动长高
+            const labelHeight = 80;
+            const boxPadding = 60; // 盒子内边距
 
-            // 4. 重置画布高度
+            // 1. 预计算高度
+            ctx.font = "36px 'Noto Sans SC'";
+
+            // 初稿高度
+            const draftLines = calculateTextLines(ctx, inputVal || "（未填写）", textWidth);
+            const draftTextHeight = draftLines.length * lineHeight;
+            const draftBoxHeight = draftTextHeight + boxPadding * 2;
+            const draftSectionHeight = labelHeight + draftBoxHeight;
+
+            // 进化稿高度 (如果有)
+            let masterSectionHeight = 0;
+            let masterLines = [];
+            let masterBoxHeight = 0;
+            const hasMaster = revVal.length > 2;
+            
+            if (hasMaster) {
+                masterLines = calculateTextLines(ctx, revVal, textWidth);
+                const masterTextHeight = masterLines.length * lineHeight;
+                masterBoxHeight = masterTextHeight + boxPadding * 2;
+                masterSectionHeight = labelHeight + masterBoxHeight;
+            }
+
+            const headerHeight = 480;
+            const footerHeight = 150;
+            const gap = 60; // 两个区块的间距
+
+            // 总高度计算
+            let H = headerHeight + draftSectionHeight + footerHeight;
+            if (hasMaster) {
+                H += gap + masterSectionHeight;
+            }
+            if (H < 1440) H = 1440; // 最小高度兜底
+
+            // 2. 设置画布
             canvas.height = H;
 
-            // 5. 开始绘制（使用新高度 H）
+            // 3. 绘制背景
             const grd = ctx.createLinearGradient(0, 0, 0, H);
             grd.addColorStop(0, "#0f172a"); grd.addColorStop(1, "#020617");
             ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
@@ -549,56 +560,93 @@ ${inputVal}
             ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
             for(let i=0; i<H; i+=60) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
 
-            // 绘制头部
-            ctx.fillStyle = "#3b82f6"; ctx.font = "bold 40px 'JetBrains Mono'"; ctx.fillText("LOGIC LAB", 60, 100);
+            // 4. 绘制头部
+            let taskTitle = "";
+            for(let p=1; p<=3; p++) {
+                const d = syllabus[p].days.find(i => i.day === activeDayId);
+                if(d) taskTitle = d.title;
+            }
+
+            ctx.fillStyle = "#3b82f6"; ctx.font = "bold 40px 'JetBrains Mono'"; ctx.fillText("EVOLUTION LOG", 60, 100);
             ctx.fillStyle = "#fff"; ctx.font = "900 200px 'JetBrains Mono'"; ctx.fillText(activeDayId < 10 ? `0${activeDayId}` : `${activeDayId}`, 50, 320);
             ctx.fillStyle = "#94a3b8"; ctx.font = "bold 50px 'Noto Sans SC'"; ctx.fillText(`生活实战 | ${taskTitle}`, 60, 420);
 
-            // 绘制文本框（动态高度）
-            const boxY = 480;
-            const boxHeight = H - boxY - 100; // 留 100px 给 footer
-            ctx.fillStyle = "#0f172a"; ctx.fillRect(60, boxY, W-120, boxHeight);
-            ctx.strokeStyle = "#334155"; ctx.strokeRect(60, boxY, W-120, boxHeight);
+            // 5. 绘制初稿区
+            let currentY = headerHeight;
 
-            // 绘制标签
-            ctx.fillStyle = color; ctx.font = "bold 36px 'Noto Sans SC'"; ctx.fillText(label, 100, boxY + 80);
-            
-            // 绘制正文（使用预计算的行）
-            ctx.fillStyle = "#ffffff"; ctx.font = "36px 'Noto Sans SC'"; 
-            let currentY = boxY + 160;
-            textLines.forEach(line => {
-                ctx.fillText(line, 100, currentY);
-                currentY += lineHeight;
+            // 标签
+            ctx.fillStyle = "#94a3b8"; 
+            ctx.font = "bold 32px 'Noto Sans SC'";
+            ctx.fillText("📝 原始记录 (V1.0)", paddingX, currentY + 40);
+            currentY += labelHeight;
+
+            // 盒子背景
+            ctx.fillStyle = "rgba(30, 41, 59, 0.5)";
+            ctx.fillRect(paddingX, currentY, W - paddingX*2, draftBoxHeight);
+            ctx.strokeStyle = "#334155";
+            ctx.strokeRect(paddingX, currentY, W - paddingX*2, draftBoxHeight);
+
+            // 盒子文字
+            ctx.fillStyle = "#cbd5e1"; 
+            ctx.font = "36px 'Noto Sans SC'";
+            let textY = currentY + boxPadding + 10;
+            draftLines.forEach(line => {
+                ctx.fillText(line, textX, textY);
+                textY += lineHeight;
             });
 
-            // 绘制底部
-            ctx.fillStyle = "#3b82f6"; ctx.font = "30px 'Noto Sans SC'"; ctx.fillText("#结构化表达生活实战", 60, H-60);
+            currentY += draftBoxHeight + gap;
+
+            // 6. 绘制进化区 (如果有)
+            if (hasMaster) {
+                // 标签
+                ctx.fillStyle = "#f59e0b"; // 金色
+                ctx.font = "bold 32px 'Noto Sans SC'";
+                ctx.fillText("🏆 进化版本 (V2.0)", paddingX, currentY + 40);
+                currentY += labelHeight;
+
+                // 盒子背景
+                ctx.fillStyle = "rgba(245, 158, 11, 0.1)"; // 金色微光
+                ctx.fillRect(paddingX, currentY, W - paddingX*2, masterBoxHeight);
+                ctx.strokeStyle = "#f59e0b"; // 金边
+                ctx.strokeRect(paddingX, currentY, W - paddingX*2, masterBoxHeight);
+
+                // 盒子文字
+                ctx.fillStyle = "#ffffff"; // 亮白字
+                ctx.font = "36px 'Noto Sans SC'";
+                textY = currentY + boxPadding + 10;
+                masterLines.forEach(line => {
+                    ctx.fillText(line, textX, textY);
+                    textY += lineHeight;
+                });
+            }
+
+            // 7. 绘制底部
+            ctx.fillStyle = "#3b82f6"; ctx.font = "30px 'Noto Sans SC'"; ctx.fillText("#思维表达进化训练营", 60, H - 60);
             
             document.getElementById('report-img').src = canvas.toDataURL("image/png");
             document.getElementById('report-overlay').classList.add('show');
         }
 
-        // 辅助函数：计算自动换行后的行数组
-        function getLines(ctx, text, maxWidth) {
+        // 自动换行辅助函数
+        function calculateTextLines(ctx, text, maxWidth) {
             const paragraphs = text.split('\n');
-            let lines = [];
-            paragraphs.forEach(paragraph => {
+            let allLines = [];
+            paragraphs.forEach(para => {
                 let line = '';
-                const words = paragraph.split('');
+                const words = para.split('');
                 for (let n = 0; n < words.length; n++) {
                     const testLine = line + words[n];
                     if (ctx.measureText(testLine).width > maxWidth && n > 0) {
-                        lines.push(line);
+                        allLines.push(line);
                         line = words[n];
                     } else {
                         line = testLine;
                     }
                 }
-                lines.push(line);
-                // 每一段结束后增加一个空行，模拟段间距（可选）
-                // lines.push(''); 
+                allLines.push(line);
             });
-            return lines;
+            return allLines;
         }
 
         function closeReport() { document.getElementById('report-overlay').classList.remove('show'); }
@@ -632,7 +680,7 @@ ${inputVal}
         }
 
         function resetData() {
-            if(confirm("⚠️ 确定要清空所有进度重新开始吗？\n\n此操作将删除所有打卡记录，且无法撤销！\n建议先点击【备份进度】。")) {
+            if(confirm("⚠️ 警告：确定要清空所有进度重新开始吗？\n\n此操作无法撤销！如果需要保留数据，请先点击【备份进度】。")) {
                 try {
                     localStorage.removeItem(DB_KEY_PROG);
                     localStorage.removeItem(DB_KEY_INPUT);
