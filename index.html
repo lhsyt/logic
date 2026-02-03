@@ -2,8 +2,25 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>思维进化胶囊 | Evolution Workbook</title>
+    
+    <style>
+        /* 启动加载层 */
+        #app-loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #050505; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #3b82f6; font-family: sans-serif; transition: opacity 0.5s;
+        }
+        .loading-spinner {
+            width: 40px; height: 40px; border: 4px solid #1e293b;
+            border-top: 4px solid #3b82f6; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
     <style>
         :root {
             --bg-dark: #050505;
@@ -26,7 +43,7 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
             background-color: var(--bg-dark);
             color: var(--text-main);
             min-height: 100vh;
@@ -35,9 +52,9 @@
             align-items: center;
             overflow-x: hidden;
             overscroll-behavior-y: none;
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
-        /* 顶部氛围光 */
         body::before {
             content: ''; position: fixed; top: -20%; left: 50%; transform: translateX(-50%);
             width: 120%; height: 60%; 
@@ -99,12 +116,15 @@
         .btn-reset:hover { opacity: 1; background: rgba(239, 68, 68, 0.1); }
         .copyright { font-size: 0.7rem; color: #444; letter-spacing: 1px; }
 
+        /* Report Overlay */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px); z-index: 100; display: none; justify-content: center; align-items: end; opacity: 0; transition: opacity 0.3s; }
         .modal-overlay.open { display: flex; opacity: 1; }
         .modal-content { background: #161616; width: 100%; max-width: 600px; height: 92vh; border-radius: 24px 24px 0 0; border-top: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 -10px 40px rgba(0,0,0,0.8); }
         .modal-header { padding: 20px 24px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
         .modal-title { font-size: 1.2rem; font-weight: 800; color: #fff; font-family: ui-monospace, monospace; }
         .close-btn { background: none; border: none; color: #666; font-size: 28px; padding: 0; cursor: pointer; }
+        
+        /* 底部留白 */
         .modal-body { flex: 1; overflow-y: auto; padding: 24px; padding-bottom: 300px; -webkit-overflow-scrolling: touch; }
         
         .section-label { font-size: 0.75rem; color: var(--accent-blue); font-weight: 800; text-transform: uppercase; margin: 24px 0 10px; letter-spacing: 1px; }
@@ -130,19 +150,13 @@
         .report-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center; }
         .report-overlay.show { display: flex; }
         
-        /* 核心修复：强制开启 iOS 触摸反馈，确保长按菜单出现 */
-        .report-img { 
-            max-width: 90%; 
-            max-height: 80vh; 
-            border-radius: 12px; 
-            border: 1px solid #333; 
-            pointer-events: auto; 
-            -webkit-touch-callout: default; /* 允许 iOS 长按菜单 */
-            user-select: auto;
-        }
+        /* 强制允许触摸，适配长按保存 */
+        .report-img { max-width: 90%; max-height: 80vh; border-radius: 12px; border: 1px solid #333; pointer-events: auto; -webkit-touch-callout: default; user-select: auto; }
         
         .report-close { position: absolute; top: 20px; right: 20px; color: #fff; font-size: 30px; cursor: pointer; z-index: 201; }
         .report-tip { color: var(--gold); margin-top: 20px; font-size: 0.8rem; font-weight: 600; animation: pulse 2s infinite; }
+        .char-counter { font-size: 0.7rem; color: #666; text-align: right; margin-bottom: 4px; }
+        
         #canvas-buffer { display: none; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -150,6 +164,11 @@
     </style>
 </head>
 <body>
+
+    <div id="app-loading">
+        <div class="loading-spinner"></div>
+        <div>思维系统启动中...</div>
+    </div>
 
     <div class="container">
         <div class="hero-section">
@@ -228,8 +247,11 @@
                     <div id="m-example" style="color:#aaa; white-space:pre-wrap;">...</div>
                 </div>
 
-                <div class="section-label" style="color: #a78bfa;">🗣️ 初稿 (V1.0)</div>
-                <textarea id="m-input" class="homework-area" placeholder="点击麦克风，口述你的想法..."></textarea>
+                <div class="section-label" style="color: #a78bfa; display:flex; justify-content:space-between;">
+                    <span>🗣️ 初稿 (V1.0)</span>
+                    <span class="char-counter" id="draft-counter">0/2000</span>
+                </div>
+                <textarea id="m-input" class="homework-area" placeholder="点击麦克风，口述你的想法..." maxlength="2000"></textarea>
                 
                 <button class="btn-ai-gen" onclick="generateAiPrompt()">
                     <span>✨ 呼叫 AI 教练优化逻辑</span>
@@ -244,8 +266,11 @@
                     </div>
                 </div>
 
-                <div class="section-label" style="color: var(--gold); margin-top:30px;">🏆 大师成品 (V2.0)</div>
-                <textarea id="m-revision" class="revision-area" placeholder="AI 优化后的逻辑版本..."></textarea>
+                <div class="section-label" style="color: var(--gold); margin-top:30px; display:flex; justify-content:space-between;">
+                    <span>🏆 大师成品 (V2.0)</span>
+                    <span class="char-counter" id="master-counter">0/2000</span>
+                </div>
+                <textarea id="m-revision" class="revision-area" placeholder="AI 优化后的逻辑版本..." maxlength="2000"></textarea>
                 <div id="save-msg" style="text-align:right; color:#666; font-size:0.7rem; margin-top:4px;">已保存</div>
 
                 <button id="btn-report" class="btn-report" onclick="generateVisualReport()">
@@ -256,15 +281,27 @@
         </div>
     </div>
 
-    <div class="report-overlay" id="report-overlay">
+    <div class="report-overlay" id="report-overlay" onclick="closeReport()">
         <div class="report-close" onclick="closeReport()">×</div>
-        <img id="report-img" class="report-img" alt="Report">
-        <div class="report-tip">长按图片保存 -> 秀出你的逻辑</div>
+        <img id="report-img" class="report-img" alt="Report" onclick="event.stopPropagation()">
+        <div class="report-tip" onclick="event.stopPropagation()">长按图片保存 -> 秀出你的逻辑</div>
     </div>
     <canvas id="canvas-buffer" width="1080" height="1440"></canvas>
 
     <script>
-        // === 核心数据 ===
+        // 1. 全局错误捕获 (防白屏)
+        window.onerror = function(msg, url, line, col, error) {
+            const loading = document.getElementById('app-loading');
+            if(loading) {
+                loading.innerHTML = '<div style="color:#ef4444; padding:20px; text-align:center;">⚠️ 系统运行遇到问题<br><br>请尝试刷新页面<br>或联系管理员反馈</div>';
+                const spinner = loading.querySelector('.loading-spinner');
+                if(spinner) spinner.style.animation = 'none';
+            } else {
+                alert("⚠️ 操作遇到未知错误，请刷新重试。\n" + msg);
+            }
+            return false;
+        };
+
         const syllabus = {
             1: {
                 title: "观点训练：说人话",
@@ -309,12 +346,12 @@
         const DB_KEY_INPUT = 'zhouzhou_life_input';
         const DB_KEY_REV = 'zhouzhou_life_rev';
 
-        // 核心修复：防止 localStorage 报错导致白屏
+        // 2. 存储容错
         function safeGet(key) {
             try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; }
         }
         function safeSet(key, val) {
-            try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+            try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { console.warn("Storage failed"); }
         }
 
         let completedDays = safeGet(DB_KEY_PROG) || [];
@@ -323,16 +360,24 @@
         
         let activeDayId = null;
         let activeWeekId = 1;
-
-        // 优化1：防抖计时器
         let saveTimeout;
+        
+        // 3. Blob 对象全局保活变量（关键！）
+        let lastBlobUrl = null;
 
-        function init() { renderContent(); updateProgress(); }
+        function init() { 
+            const loader = document.getElementById('app-loading');
+            if(loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 500);
+            }
+            renderContent(); 
+            updateProgress(); 
+        }
 
         function renderContent() {
             const container = document.getElementById('content-area');
             container.innerHTML = '';
-            
             const weekData = syllabus[currentWeek];
             const banner = document.getElementById('week-banner');
             banner.innerHTML = `
@@ -340,7 +385,6 @@
                 <div class="banner-title">${weekData.title}</div>
                 <div class="banner-desc">${weekData.goal}</div>
             `;
-            
             banner.style.animation = 'none';
             banner.offsetHeight; 
             banner.style.animation = 'slideUp 0.4s ease-out';
@@ -388,7 +432,6 @@
             document.getElementById('progress-text').innerText = pct + '%';
         }
 
-        // 优化2：安卓返回键拦截
         window.addEventListener('popstate', function(event) {
             const modal = document.getElementById('modal');
             if (modal.classList.contains('open')) {
@@ -410,8 +453,14 @@
             const inputArea = document.getElementById('m-input');
             const revArea = document.getElementById('m-revision');
             
-            inputArea.value = userInputs[dayId] || data.template;
-            revArea.value = userRevisions[dayId] || "";
+            const val1 = userInputs[dayId] || data.template;
+            const val2 = userRevisions[dayId] || "";
+            
+            inputArea.value = val1;
+            revArea.value = val2;
+            
+            document.getElementById('draft-counter').innerText = `${val1.length}/2000`;
+            document.getElementById('master-counter').innerText = `${val2.length}/2000`;
 
             document.getElementById('ai-box').style.display = 'none';
             document.getElementById('modal').classList.add('open');
@@ -424,10 +473,11 @@
             }
         }
 
-        // 优化1：防抖保存
         document.getElementById('m-input').addEventListener('input', function(e) {
             if (!activeDayId) return;
-            userInputs[activeDayId] = e.target.value;
+            const val = e.target.value;
+            userInputs[activeDayId] = val;
+            document.getElementById('draft-counter').innerText = `${val.length}/2000`;
             document.getElementById('save-msg').innerText = "保存中...";
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(() => {
@@ -438,7 +488,9 @@
 
         document.getElementById('m-revision').addEventListener('input', function(e) {
             if (!activeDayId) return;
-            userRevisions[activeDayId] = e.target.value;
+            const val = e.target.value;
+            userRevisions[activeDayId] = val;
+            document.getElementById('master-counter').innerText = `${val.length}/2000`;
             document.getElementById('save-msg').innerText = "保存中...";
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(() => {
@@ -487,7 +539,6 @@ ${inputVal}
             }, 100);
         }
 
-        // === 强力复制 ===
         function forceCopy(btnElement) {
             const text = document.getElementById('ai-prompt-text').innerText;
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -539,7 +590,7 @@ ${inputVal}
             setTimeout(() => { btn.innerHTML = originalText; btn.classList.remove("success"); }, 2000);
         }
 
-        // === 优化2：异步战报生成，防止卡死 ===
+        // === 核心修复版：Blob 生成器 ===
         function generateVisualReport() {
             const revVal = document.getElementById('m-revision').value.trim();
             const inputVal = document.getElementById('m-input').value.trim();
@@ -549,17 +600,19 @@ ${inputVal}
                 return;
             }
 
-            // 1. 设置Loading状态
             const btn = document.getElementById('btn-report');
             const originalText = btn.innerHTML;
             btn.innerHTML = "⏳ 正在生成...";
             btn.disabled = true;
 
-            // 2. 异步执行
             setTimeout(() => {
                 try {
                     const canvas = document.getElementById('canvas-buffer');
                     const ctx = canvas.getContext('2d');
+                    
+                    // 强制清空画布，防止重影
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
                     const W = 1080;
                     const paddingX = 60; 
                     const textX = 100;
@@ -568,11 +621,9 @@ ${inputVal}
                     const labelHeight = 80;
                     const boxPadding = 60; 
 
-                    // 字体设置
-                    ctx.font = "36px 'Noto Sans SC', sans-serif";
+                    ctx.font = "36px 'Noto Sans SC', 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
 
-                    // 计算高度 (限制最大行数防止崩溃)
-                    const MAX_LINES = 150; // 限制每个板块最多150行
+                    const MAX_LINES = 150; 
                     let draftLines = calculateTextLines(ctx, inputVal || "（未填写）", textWidth);
                     if (draftLines.length > MAX_LINES) {
                         draftLines = draftLines.slice(0, MAX_LINES);
@@ -605,12 +656,11 @@ ${inputVal}
                     if (hasMaster) H += gap + masterSectionHeight;
                     if (H < 1440) H = 1440;
                     
-                    // 极限高度保护，防止显卡崩溃
-                    if (H > 12000) H = 12000;
+                    // 降低安全高度阈值，确保千元机不崩
+                    if (H > 8000) H = 8000;
 
                     canvas.height = H;
 
-                    // 绘制
                     const grd = ctx.createLinearGradient(0, 0, 0, H);
                     grd.addColorStop(0, "#0f172a"); grd.addColorStop(1, "#020617");
                     ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
@@ -618,8 +668,6 @@ ${inputVal}
                     ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
                     for(let i=0; i<H; i+=60) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
 
-                    // Header
-                    // 防呆：如果没有 activeDayId，默认取第1天
                     let safeDayId = activeDayId || 1;
                     let taskTitle = "";
                     for(let p=1; p<=3; p++) {
@@ -631,7 +679,6 @@ ${inputVal}
                     ctx.fillStyle = "#fff"; ctx.font = "900 200px 'JetBrains Mono', monospace"; ctx.fillText(safeDayId < 10 ? `0${safeDayId}` : `${safeDayId}`, 50, 320);
                     ctx.fillStyle = "#94a3b8"; ctx.font = "bold 50px 'Noto Sans SC', sans-serif"; ctx.fillText(`生活实战 | ${taskTitle}`, 60, 420);
 
-                    // Draft
                     let currentY = headerHeight;
                     ctx.fillStyle = "#94a3b8"; 
                     ctx.font = "bold 32px 'Noto Sans SC', sans-serif";
@@ -650,7 +697,6 @@ ${inputVal}
 
                     currentY += draftBoxHeight + gap;
 
-                    // Master
                     if (hasMaster) {
                         ctx.fillStyle = "#f59e0b"; 
                         ctx.font = "bold 32px 'Noto Sans SC', sans-serif";
@@ -668,14 +714,27 @@ ${inputVal}
                         masterLines.forEach(line => { ctx.fillText(line, textX, textY); textY += lineHeight; });
                     }
 
-                    // Footer
                     ctx.fillStyle = "#3b82f6"; ctx.font = "30px 'Noto Sans SC', sans-serif"; ctx.fillText("#思维表达进化训练营", 60, H - 60);
                     
-                    // 修复的核心：先清空，再赋值，用 JPEG 0.6 压缩
-                    const img = document.getElementById('report-img');
-                    img.src = "";
-                    img.src = canvas.toDataURL("image/jpeg", 0.6);
-                    document.getElementById('report-overlay').classList.add('show');
+                    // === 核心修改：使用 Blob 流 + 延迟销毁 ===
+                    canvas.toBlob(function(blob) {
+                        // 1. 如果有旧的，先清理旧的（Lazy Revoke）
+                        if (lastBlobUrl) {
+                            URL.revokeObjectURL(lastBlobUrl);
+                        }
+                        
+                        // 2. 创建新的并保存引用
+                        const url = URL.createObjectURL(blob);
+                        lastBlobUrl = url; 
+                        
+                        // 3. 显示图片
+                        const img = document.getElementById('report-img');
+                        img.src = url;
+                        document.getElementById('report-overlay').classList.add('show');
+                        
+                        // 4. 注意：这里不再立即 revokeObjectURL，确保用户能保存
+                    }, 'image/jpeg', 0.5); // 质量降到0.5，确保体积够小
+
                 } catch(e) {
                     alert("生成失败，请减少字数重试");
                     console.error(e);
@@ -705,6 +764,10 @@ ${inputVal}
                 allLines.push(line);
             });
             return allLines;
+        }
+
+        function closeReport() {
+            document.getElementById('report-overlay').classList.remove('show');
         }
 
         function copyDataString(btn) {
@@ -752,7 +815,11 @@ ${inputVal}
             }
         }
 
-        init();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
